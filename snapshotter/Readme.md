@@ -1,4 +1,4 @@
-# Volume Snapshotter 
+# Volume Snapshotter for K8s PVCs
 A simple Helm Chart to manage your `VolumeSnapshots` with a Kubernetes `CronJob` executing a shell script.
 
 ## Introduction
