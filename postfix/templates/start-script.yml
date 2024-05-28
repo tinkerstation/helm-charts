@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postfix.fullname" . }}-start-script
+data:
+  start.sh: |-
+    #!/bin/bash
+
+{{- if .Values.opendkim.enabled }}
+    supervisord -c /etc/supervisord.conf &
+    chown $(id -u opendkim):$(id -g opendkim) -R /etc/opendkim/keys
+{{- end }}
+
+    cat << EOF > /etc/postfix/allowed_email_pattern
+{{ .Values.postfix.allowedEmailPattern | indent 4 }}
+    EOF
+
+    # Postfix have to know which authentication mode the daemon will use.
+    cat << EOF > /etc/postfix/sasl/smtpd.conf
+    sasldb_path: /etc/sasldb2
+    pwcheck_method: saslauthd
+    mech_list: PLAIN LOGIN
+    log_level: 10
+    EOF
+
+    chmod 0644 /etc/postfix/sasl/smtpd.conf
+
+    cp /etc/postfix/sasl/smtpd.conf  /usr/lib/sasl2/smtpd.conf
+
+    # Create now the directory for the saslauthd
+    mkdir -p /var/spool/postfix/var/run/saslauthd
+
+    cat << EOF >> /etc/default/saslauthd
+    START=yes
+    DESC="SASL Auth. Daemon for Postfix"   
+    # max. 15 char.
+    NAME="saslauthd"
+    MECHANISMS="sasldb"
+    MECH_OPTIONS=""
+    THREADS=15
+    PARAMS="-m /var/spool/postfix/var/run/saslauthd/"
+    PIDFILE="/var/spool/postfix/var/run/saslauthd/saslauthd.pid"
+    # Option -m sets working dir for saslauthd (contains socket)
+    OPTIONS="-c -m /var/spool/postfix/var/run/saslauthd"   # postfix/smtp in chroot()
+    EOF
+
+    # Set the right directory permission
+    chown root.sasl -R /var/spool/postfix/var/
+
+    # Instead that dpkg change the permission we have to create an override for dpkg!
+    dpkg-statoverride --add root sasl 710 /var/spool/postfix/var/run/saslauthd
+
+    {{- $domain := .Values.network.domain }}
+    {{- range .Values.auth }}
+    echo -n {{ .password | quote }} | saslpasswd2 -c -u {{ $domain }} -a smtpauth {{ .username }}
+    {{- end }}
+
+    echo "sasldb list users... $(sasldblistusers2)"
+   
+    service saslauthd start
+
+    syslog-ng; tail -f /var/log/mail.log & tail -f /var/log/mail.err  & postfix start-fg

@@ -1,0 +1,34 @@
+{{- if .Values.opendkim.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postfix.fullname" . }}-dkim
+data:
+  conf: |-
+{{ .Values.opendkim.conf | indent 4 }}
+  SigningTable: |-
+    {{- range .Values.opendkim.domains }}
+    *@{{ .domain }} {{ .selector }}._domainkey.{{ .domain }}
+    {{- end }}
+{{- if .Values.opendkim.SigningTable }}
+{{ .Values.opendkim.SigningTable | indent 4 }}
+{{- end }}
+  TrustedHosts: |-
+    127.0.0.1
+    ::1
+{{- range .Values.opendkim.domains }}
+    *.{{ .domain }}
+{{- end }}
+{{- if .Values.opendkim.TrustedHosts }}
+{{ .Values.opendkim.TrustedHosts| indent 4 }}
+{{- end }}
+  KeyTable: |-
+{{- range .Values.opendkim.domains }}
+    {{ .selector }}._domainkey.{{ .domain }} {{ .domain }}:{{ .selector }}:/etc/opendkim/keys/{{ .domain }}/{{ .selector }}.private
+{{- end }}
+{{- if .Values.opendkim.KeyTable }}
+{{ .Values.opendkim.KeyTable | indent 4 }}
+{{- end }}
+  supervisord_service: |-
+{{ .Values.opendkim.supervisord_service | indent 4 }}
+{{- end }}

@@ -1,0 +1,68 @@
+image:
+  repository: ghcr.io/tinkerstation/containers/postfix
+  pullPolicy: IfNotPresent
+  tag: 1.0-3.6.5
+imagePullSecrets: []
+  #  - name: docker-config
+
+# list of username and password for mailserver access
+auth: []
+  # - username:
+  #   password:
+
+network:
+  loadBalancerIP:
+  # allow source ip ranges
+  allowedIPRange:
+  domain:
+
+postfix:
+  # max message size in bytes
+  messageSizeLimit: "30720000"
+  # for sender and receiver email address
+  # permits use of alphabets, digits and the special characters - and _
+  allowedEmailPattern: |-
+      /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+\.[a-zA-Z0-9]+$/ PERMIT
+      !/^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+\.[a-zA-Z0-9]+$/ REJECT
+  # extra postfix config
+  # values can be separated with commas, carriage return and space 
+  config:
+
+networkPolicy:
+  enabled: false
+  egressToKubeDNSEnabled: false
+  egressToGoogleDNSEnabled: false
+  ingress: []
+  # - cidr: 
+  #     - 0.0.0.0/0
+  #   ports:
+  #     - port: 25
+  #       protocol: TCP
+  egress: []
+  # - cidr: 
+  #     - 0.0.0.0/0
+  #   ports:
+  #     - port: 25
+  #       protocol: TCP
+
+opendkim:
+  enabled: false
+  domains:
+    # - domain: # provision them in this way
+    #   selector: mail # subdomain i.e mail.tinkerstation.com
+    #   private_key:
+  SigningTable:
+  TrustedHosts:
+  KeyTable:
+  conf: "Syslog                  yes\nSyslogSuccess           yes\nRequireSafeKeys         false\nCanonicalization        relaxed/simple\nMode                    sv\n# SubDomains              yes\nOversignHeaders         From\n\nUserID                  opendkim\n# Required to use local socket with MTAs that access the socket as a non-\n# privileged user (e.g. Postfix)\nUMask                   0002\nSocket                  inet:8891@localhost \nPidFile                 /var/run/opendkim/opendkim.pid\nTrustAnchorFile         /usr/share/dns/root.key\nKeyTable                /etc/opendkim/KeyTable\nSigningTable            refile:/etc/opendkim/SigningTable\nExternalIgnoreList      refile:/etc/opendkim/TrustedHosts\nInternalHosts           refile:/etc/opendkim/TrustedHosts"
+  supervisord_service: |-
+    [supervisord]
+    nodaemon=true
+    loglevel=info
+
+    [program:opendkim]
+    command=opendkim -x /etc/opendkim.conf -f -p inet:8891@localhost
+    autostart=true
+    autorestart=true
+    stderr_logfile=/var/log/opendkim.err.log
+    stdout_logfile=/var/log/opendkim.out.log

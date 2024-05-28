@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postfix.fullname" . }}
+  labels:
+    {{- include "postfix.labels" . | nindent 4 }}
+  {{- if .Values.network.loadBalancerIP }}
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+  {{- end }}
+spec:
+  {{- if .Values.network.loadBalancerIP }}
+  type: LoadBalancer
+  loadBalancerIP: {{ .Values.network.loadBalancerIP }}
+  {{- end }}
+  ports:
+    - port: 25
+      targetPort: smtp
+      protocol: TCP
+      name: smtp
+  selector:
+    {{- include "postfix.selectorLabels" . | nindent 4 }}

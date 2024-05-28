@@ -1,0 +1,59 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postfix.fullname" . }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postfix.selectorLabels" . | nindent 6 }}
+  ingress:
+  {{- if .Values.networkPolicy.ingress }}
+  {{- range .Values.networkPolicy.ingress }}
+  - from:
+    {{- range .cidr }}
+    - ipBlock:
+        cidr: "{{ . }}"
+    {{- end }}
+    ports:
+    {{- range .ports }}
+    - port: {{ .port }}
+      protocol: {{ .protocol }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  egress:
+  {{- if .Values.networkPolicy.egress }}
+  {{- range .Values.networkPolicy.egress }}
+  - to:
+    {{- range .cidr }}
+    - ipBlock:
+        cidr: "{{ . }}"
+    {{- end }}
+    ports:
+    {{- range .ports }}
+    - port: {{ .port }}
+      protocol: {{ .protocol }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.networkPolicy.egressToKubeDNSEnabled }}
+  - to: # kubedns discovery
+      - podSelector: 
+          matchLabels:
+            k8s-app: kube-dns
+    ports:
+      - port: 53
+        protocol: UDP
+  {{- end }}
+  {{- if .Values.networkPolicy.egressToGoogleDNSEnabled }}
+  - to:
+      - ipBlock: 
+          cidr: 8.8.8.8/32
+      - ipBlock: 
+          cidr: 8.8.4.4/32
+    ports:
+      - port: 53
+        protocol: UDP
+  {{- end }}
+{{- end }}

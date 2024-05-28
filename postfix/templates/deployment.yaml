@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "postfix.fullname" . }}
+  labels:
+    {{- include "postfix.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postfix.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postfix.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/bin/bash", "-c","./home/noreply/start.sh"]
+        volumeMounts:
+        - name: main-config
+          mountPath: /etc/postfix/main.cf
+          subPath: main.cf
+        - name: start-script
+          mountPath: /home/noreply/start.sh
+          subPath: start.sh 
+        - name: opendkim-configs
+          mountPath: /etc/opendkim.conf
+          subPath: conf 
+        - name: opendkim-configs
+          mountPath: /etc/opendkim/TrustedHosts
+          subPath: TrustedHosts
+        - name: opendkim-configs
+          mountPath: /etc/opendkim/SigningTable
+          subPath: SigningTable
+        - name: opendkim-configs
+          mountPath: /etc/opendkim/KeyTable
+          subPath: KeyTable
+        - name: opendkim-configs
+          mountPath: /etc/supervisord.conf
+          subPath: supervisord_service
+{{- if .Values.opendkim.enabled }}
+        - name: dkim-keys-mount
+          mountPath: /etc/opendkim/keys
+{{- end  }}
+        ports:
+        - name: smtp
+          containerPort: 25
+          protocol: TCP
+{{- if .Values.opendkim.enabled }}
+      initContainers:
+      - name: dkim-keys-permissions
+        image: busybox
+        command: ["/bin/sh","-c"]
+        args: # the uid:gid might not be fix! an extra layer of chown uid:gid is added on start-script.
+          - |
+            for domainPath in /keys/*; do
+              domain=$(basename $domainPath);
+              mkdir -p /etc/opendkim/keys/$domain;
+              cp $domainPath/* /etc/opendkim/keys/$domain/;
+              chown -R 102:105 /etc/opendkim/keys/$domain;
+              chmod -R 0600 /etc/opendkim/keys/$domain/*;
+            done;
+        volumeMounts:
+        - name: dkim-keys-mount
+          mountPath: /etc/opendkim/keys
+        {{- range $v := .Values.opendkim.domains }}
+        - name: dkim-key-{{ $v.domain | replace "." "-" }}
+          mountPath: /keys/{{ $v.domain }}/{{ $v.selector }}.private
+          subPath: dkim_private_key
+          readOnly: true
+        {{- end }}
+{{- end }}
+      volumes:
+      - name: main-config
+        configMap:
+          name: {{ include "postfix.fullname" . }}-main
+      - name: master-config
+        configMap:
+          name: {{ include "postfix.fullname" . }}-master
+      - name: start-script
+        configMap:
+          name: {{ include "postfix.fullname" . }}-start-script
+          defaultMode: 0755
+      - name: opendkim-configs
+        configMap:
+          name: {{ include "postfix.fullname" . }}-dkim
+          defaultMode: 0755
+{{- if .Values.opendkim.enabled }}
+      {{- range $v := .Values.opendkim.domains }}
+      - name: dkim-key-{{ $v.domain | replace "." "-" }}
+        secret:
+          secretName: {{ include "postfix.fullname" $ }}-{{ $v.domain | replace "." "-" }}
+          items:
+          - key: dkim_private_key
+            path: dkim_private_key
+      {{- end }}
+      - name: dkim-keys-mount
+        emptyDir: {}
+{{- end  }}

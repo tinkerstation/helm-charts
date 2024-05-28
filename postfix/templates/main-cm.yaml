@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postfix.fullname" . }}-main
+data:
+  main.cf: |-
+    biff = no
+    append_dot_mydomain = no
+    readme_directory = no
+
+    # See http://www.postfix.org/COMPATIBILITY_README.html -- default to 3.6 on fresh installs.
+    compatibility_level = 3.6
+
+    myhostname = {{ .Values.network.domain }}
+    alias_maps = hash:/etc/aliases
+    alias_database = hash:/etc/aliases
+    myorigin = {{ .Values.network.domain }}
+    relayhost =
+    mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 {{ .Values.network.allowedIPRange }}
+    mailbox_size_limit = 0
+    recipient_delimiter = +
+    inet_interfaces = all
+    inet_protocols = ipv4
+    mydomain = {{ .Values.network.domain }}
+    mydestination = localhost.{{ .Values.network.domain }}, localhost, {{ .Values.network.domain }}
+    ignore_mx_lookup_error = yes
+    message_size_limit = {{ .Values.postfix.messageSizeLimit }}
+
+    # SMTP CONFIG for SMTP daemon process for delivering mail out to the world.
+
+    # TLS parameters
+    smtp_tls_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+    smtp_tls_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+    smtp_tls_CApath=/etc/ssl/certs
+    smtp_tls_security_level=may
+    smtp_tls_session_cache_database=btree:${data_directory}/smtp_scache
+    smtp_tls_loglevel=1
+
+    # SASL
+    smtp_sasl_auth_enable=no
+
+    # SMTPD CONFIG for SMTPD daemon process for handling incoming mail and routing to the appropriate internal location.
+
+    smtpd_banner=$myhostname ESMTP $mail_name (Ubuntu)
+
+    # The order of relay restriction values is important, so be careful where to insert the next line
+    smtpd_relay_restrictions=permit_sasl_authenticated defer_unauth_destination permit_mynetworks
+
+    # TLS parameters
+    smtpd_use_tls=yes
+    smtpd_tls_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+    smtpd_tls_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+    smtpd_tls_CApath=/etc/ssl/certs
+    smtpd_tls_security_level=may  
+    smtpd_tls_session_cache_database=btree:${data_directory}/smtpd_scache
+    smtpd_tls_loglevel=1
+    smtpd_tls_received_header=yes
+    smtpd_tls_auth_only=no
+    smtpd_tls_session_cache_timeout=3600s
+    tls_random_source=dev:/dev/urandom
+
+    # SASL
+    smtpd_sasl_auth_enable=yes
+    smtpd_sasl_path=smtpd
+    smtpd_sasl_security_options=noanonymous
+    broken_sasl_auth_clients=yes
+    smtpd_sasl_local_domain=$myhostname
+    smtpd_tls_mandatory_exclude_ciphers=aNULL
+    smtp_tls_note_starttls_offer=yes
+    
+    # The order of recipient restrictions is important, so be careful where to insert the next line
+    smtpd_recipient_restrictions = pcre:/etc/postfix/allowed_email_pattern reject_unknown_recipient_domain, permit_sasl_authenticated, reject_non_fqdn_recipient, reject_unauth_destination
+
+    # allow only refined emails as per RFC 10348, RFC 53229 
+    smtpd_sender_restrictions = pcre:/etc/postfix/allowed_email_pattern
+    
+{{- if .Values.opendkim.enabled }}
+    # Instruct Postfix to call opendkim via the milter protocol.
+    smtpd_milters = inet:127.0.0.1:8891
+    non_smtpd_milters = $smtpd_milters 
+    milter_default_action = accept 
+{{- end }}
+    
+{{ .Values.postfix.config | indent 4 }}
