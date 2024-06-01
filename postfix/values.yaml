@@ -48,13 +48,33 @@ networkPolicy:
 opendkim:
   enabled: false
   domains:
-    # - domain: # provision them in this way
-    #   selector: mail # subdomain i.e mail.tinkerstation.com
-    #   private_key:
-  SigningTable:
-  TrustedHosts:
-  KeyTable:
-  conf: "Syslog                  yes\nSyslogSuccess           yes\nRequireSafeKeys         false\nCanonicalization        relaxed/simple\nMode                    sv\n# SubDomains              yes\nOversignHeaders         From\n\nUserID                  opendkim\n# Required to use local socket with MTAs that access the socket as a non-\n# privileged user (e.g. Postfix)\nUMask                   0002\nSocket                  inet:8891@localhost \nPidFile                 /var/run/opendkim/opendkim.pid\nTrustAnchorFile         /usr/share/dns/root.key\nKeyTable                /etc/opendkim/KeyTable\nSigningTable            refile:/etc/opendkim/SigningTable\nExternalIgnoreList      refile:/etc/opendkim/TrustedHosts\nInternalHosts           refile:/etc/opendkim/TrustedHosts"
+    # provision them in this way
+    # - domain: 
+    # subdomain i.e mail.tinkerstation.com
+    #   selector: mail 
+    #   private_key: ""
+  SigningTable: ""
+  TrustedHosts: "" 
+  KeyTable: ""
+  conf: |-
+    Syslog                  yes
+    SyslogSuccess           yes
+    RequireSafeKeys         false
+    Canonicalization        relaxed/simple
+    Mode                    sv
+    # SubDomains            yes
+    OversignHeaders         From
+    UserID                  opendkim
+    # Required to use local socket with MTAs that access the socket as a non-\n
+    # privileged user (e.g. Postfix)\n
+    UMask                   0002
+    Socket                  inet:8891@localhost
+    PidFile                 /var/run/opendkim/opendkim.pid
+    TrustAnchorFile         /usr/share/dns/root.key
+    KeyTable                /etc/opendkim/KeyTable
+    SigningTable            refile:/etc/opendkim/SigningTable
+    ExternalIgnoreList      refile:/etc/opendkim/TrustedHosts
+    InternalHosts           refile:/etc/opendkim/TrustedHosts
   supervisord_service: |-
     [supervisord]
     nodaemon=true
