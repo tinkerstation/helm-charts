@@ -1,4 +1,4 @@
-# helm-charts
+# Tinker Charts
 A collection of custom built Helm Charts
 
 |    Chart Name            |  Description                          | Credits to Creators |
